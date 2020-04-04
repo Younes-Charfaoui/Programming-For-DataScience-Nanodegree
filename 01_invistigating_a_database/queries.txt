@@ -1,0 +1,80 @@
+/* Query 1 */
+
+SELECT filmTable.title               as title,
+       categoryTable.name            as name,
+       COUNT(rentaleTable.rental_id) AS rental_count
+FROM category AS categoryTable
+         JOIN film_category AS filmCategoryTable
+              ON categoryTable.category_id = filmCategoryTable.category_id
+                  AND categoryTable.name IN ('Animation', 'Children', 'Classics', 'Comedy', 'Family', 'Music')
+
+         JOIN film AS filmTable
+              ON filmTable.film_id = filmCategoryTable.film_id
+
+         JOIN inventory AS inventoryTable
+              ON filmTable.film_id = inventoryTable.film_id
+
+         JOIN rental AS rentaleTable
+              ON inventoryTable.inventory_id = rentaleTable.inventory_id
+GROUP BY title, name
+ORDER BY name, title;
+
+/* Query 2 */
+
+SELECT DATE_PART('month', rentaleTable.rental_date) AS rental_month,
+       DATE_PART('year', rentaleTable.rental_date)  AS rental_year,
+       ('Store ' || storeTable.store_id)            AS store,
+       COUNT(*)
+FROM store AS storeTable
+         JOIN staff AS staffTable
+              ON storeTable.store_id = staffTable.store_id
+
+         JOIN rental rentaleTable
+              ON staffTable.staff_id = rentaleTable.staff_id
+GROUP BY rental_month, rental_year, store
+ORDER BY rental_year, rental_month;
+
+/* Query 3 */
+
+SELECT tableResult.name              as name,
+       tableResult.standard_quartile as standard_quartile,
+       COUNT(*)                      as count
+FROM (SELECT categoryTable.name,
+             filmTable.rental_duration,
+             NTILE(4) OVER (ORDER BY filmTable.rental_duration) AS standard_quartile
+      FROM category AS categoryTable
+               JOIN film_category AS filmCategoryTable
+                    ON categoryTable.category_id = filmCategoryTable.category_id
+                        AND categoryTable.name IN ('Animation', 'Children', 'Classics', 'Comedy', 'Family', 'Music')
+               JOIN film AS filmTable
+                    ON filmTable.film_id = filmCategoryTable.film_id) AS tableResult
+GROUP BY name, standard_quartile
+ORDER BY name, standard_quartile;
+
+/* Query 4 */
+
+WITH resultCustomerPayment AS (SELECT (first_name || ' ' || last_name) AS name,
+                   customerTable.customer_id,
+                   paymentTable.amount,
+                   paymentTable.payment_date
+            FROM customer AS customerTable
+                     JOIN payment AS paymentTable
+                          ON customerTable.customer_id = paymentTable.customer_id),
+
+     resultTopCustomers AS (SELECT resultCustomerPayment.customer_id
+            FROM resultCustomerPayment
+            GROUP BY 1
+            ORDER BY SUM(resultCustomerPayment.amount) DESC
+            LIMIT 10)
+
+SELECT resultCustomerPayment.name as fullName,
+       DATE_PART('month', resultCustomerPayment.payment_date) AS paymentMonth,
+       DATE_PART('year', resultCustomerPayment.payment_date)  AS paymentYear,
+       COUNT (*) countPaymentPerMonth,
+       SUM(resultCustomerPayment.amount) payAmount
+FROM resultCustomerPayment
+         JOIN resultTopCustomers
+              ON resultCustomerPayment.customer_id = resultTopCustomers.customer_id
+WHERE resultCustomerPayment.payment_date BETWEEN '20070101' AND '20080101'
+GROUP BY fullName, paymentMonth, paymentYear
+ORDER BY fullName;
